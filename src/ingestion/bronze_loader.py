@@ -21,6 +21,10 @@ def load_to_bronze(
     df = ( 
         spark.read
         .option("header", True)
+        .option("inferSchema", True)
+        .option("quote", '"')
+        .option("escape", '"')
+        .option("multiline", True)
         .csv(str(input_file))
     )
     record_count = df.count()
@@ -38,8 +42,6 @@ def load_to_bronze(
 def run_bronze_pipeline():
     spark = get_spark_session()
     raw_path = Path("data/raw")
-
-    
 
     for dataset_name , config in DATASETS.items():
         print("\n" + "=" * 50)
