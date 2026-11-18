@@ -13,6 +13,28 @@ def read_bronze_payments(spark):
     df = spark.read.parquet(str(bronze_path))
     return df
 
+def read_silver_orders(spark):
+    silver_path=Path("data/silver/orders")
+    print(f"Reading silver orders:{silver_path}")
+    df = spark.read.parquet(str(silver_path))
+    return df
+
+def validate_order_references(payments,orders):
+    invalid_records = (
+        payments.alias("p")
+        .join(
+            orders.alias("o"),
+            on="order_id",
+            how="left_anti"
+        )
+    )
+    invalid_count = invalid_records.count()
+    print(f"Payments with invalid order_id: {invalid_count}")
+    if invalid_count > 0:
+        raise Exception(
+            f"Referential integrity failed: {invalid_count} payments have invalid order_id"
+        )
+
 def transform_payments(df):
     df = (
         df.withColumn(
@@ -43,6 +65,8 @@ def write_silver_payments(df):
 def run_payments_silver_pipeline():
     spark = get_spark_session()
     bronze_payments = read_bronze_payments(spark)
+    orders = read_silver_orders(spark)
+    validate_order_references(bronze_payments,orders)
     print("\nBronze Schema")
     bronze_payments.printSchema()
 
