@@ -24,6 +24,28 @@ def read_bronze_orders(spark):
     df = spark.read.parquet(str(bronze_path))
     return df
 
+def read_silver_customers(spark):
+    silver_path = Path("data/silver/customers")
+    print(f"Reading silver customers: {silver_path}")
+    df = spark.read.parquet(str(silver_path))
+    return df
+
+def validate_customer_references(orders,customers):
+    invalid_orders = (
+        orders.alias("o")
+        .join(
+            customers.alias("c"),
+            on="customer_id",
+            how="left_anti"
+            )
+    )
+    invalid_count = invalid_orders.count()
+    print(f"Orders with invalid customer_id: {invalid_count}")
+    if invalid_count > 0:
+        raise Exception(
+            f"Referential integrity failed: {invalid_count} orders have invalid customer_id"
+        )
+
 def transform_orders(df):
     for column_name in TIMESTAMP_COLUMNS:
         df = df.withColumn(column_name, to_timestamp(col(column_name),"yyyy-MM-dd HH:mm:ss"))
@@ -45,6 +67,8 @@ def run_orders_silver_pipeline():
     spark=get_spark_session()
 
     bronze_orders = read_bronze_orders(spark)
+    customers = read_silver_customers(spark)
+    validate_customer_references(bronze_orders,customers)
     print("\n Bronze Schema")
     bronze_orders.printSchema()
 

@@ -12,6 +12,29 @@ def read_bronze_order_reviews(spark):
     df = spark.read.parquet(str(bronze_path))
     return df
 
+def read_silver_orders(spark):
+    silver_path = Path("data/silver/orders")
+    print(f"Reading silver orders :{silver_path}")
+    df = spark.read.parquet(str(silver_path))
+    return df
+
+def validate_order_references(order_reviews,orders):
+    invalid_records = (
+        order_reviews.alias("r")
+        .join(
+            orders.alias("o"),
+            on="order_id",
+            how="left_anti"
+        )
+    )
+    invalid_count = invalid_records.count()
+    print(f"Order reviews with invalid order_id: {invalid_count}")
+    if invalid_count > 0:
+        raise Exception(
+            f"Referential integrity failed: {invalid_count} order reviews have invalid order_id"
+        )
+
+
 def transform_order_reviews(df):
     return df
 
@@ -28,6 +51,8 @@ def write_silver_order_reviews(df):
 def run_silver_order_reviews_pipeline():
     spark = get_spark_session()
     bronze_order_reviews = read_bronze_order_reviews(spark)
+    orders = read_silver_orders(spark)
+    validate_order_references(bronze_order_reviews,orders)
     print("\nBronze Schema")
     bronze_order_reviews.printSchema()
 
