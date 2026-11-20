@@ -6,7 +6,8 @@ from pyspark.sql.functions import (
     count,
     sum,
     avg,
-    countDistinct
+    countDistinct,
+    round
 )
 
 def get_spark_session():
@@ -37,28 +38,48 @@ def transform_sales_summary(orders, order_items, payments):
         "order_date",
         to_date(col("order_purchase_timestamp"))
     )
-    order_items_joined = orders.join(
-        order_items,
-        on="order_id",
-        how="inner"
+    order_items_summary = (
+        order_items.groupBy("order_id")
+        .agg(
+            count("order_item_id").alias("total_items_sold"),
+            sum("price").alias("total_product_sales"),
+            sum("freight_value").alias("total_freight")
+        )
     )
-    sales_joined = order_items_joined.join(
-        payments,
-        on="order_id",
-        how="inner"
+    payments_summary = (
+        payments.groupBy("order_id")
+        .agg(
+            sum("payment_value").alias("total_payment")
+        )
     )
+    sales_joined = (
+        orders
+        .join(
+            order_items_summary,
+            on="order_id",
+            how="inner"
+        )
+        .join(
+            payments_summary,
+            on="order_id",
+            how="inner"
+        )
+    )
+
     sales_summary = (
-        sales_joined.groupBy("order_date")
+        sales_joined
+        .groupBy("order_date")
         .agg(
             countDistinct("order_id").alias("total_orders"),
-            count("order_item_id").alias("total_items_sold"),
-            sum("payment_value").alias("total_revenue"),
-            sum("price").alias("total_product_sales"),
-            sum("freight_value").alias("total_freight"),
-            avg("payment_value").alias("avg_order_value")
+            sum("total_items_sold").alias("total_items_sold"),
+            round(sum("total_payment"),2).alias("total_revenue"),
+            round(sum("total_product_sales"),2).alias("total_product_sales"),
+            round(sum("total_freight"),2).alias("total_freight"),
+            round(avg("total_payment"),2).alias("avg_order_value")
         )
     )
     return sales_summary
+
 
 def write_gold_sales_summary(df):
     gold_path = Path("data/gold/sales_summary")
@@ -75,7 +96,6 @@ def run_sales_summary_gold_pipeline():
     orders = read_silver_orders(spark)
     order_items = read_silver_order_items(spark)
     payments = read_silver_payments(spark)
-
     sales_summary = transform_sales_summary(orders,order_items,payments)
     sales_summary.printSchema()
     sales_summary.show(5)
