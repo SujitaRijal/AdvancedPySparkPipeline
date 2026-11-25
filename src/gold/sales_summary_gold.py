@@ -7,8 +7,11 @@ from pyspark.sql.functions import (
     sum,
     avg,
     countDistinct,
-    round
+    round,
+    lag,
+    lead,
 )
+from pyspark.sql.window import Window
 
 def get_spark_session():
     return(
@@ -78,6 +81,47 @@ def transform_sales_summary(orders, order_items, payments):
             round(avg("total_payment"),2).alias("avg_order_value")
         )
     )
+    windowSpec = Window.orderBy("order_date")
+    sales_summary = sales_summary.withColumn(
+        "previous_day_revenue",
+        lag("total_revenue").over(windowSpec)
+    )
+    sales_summary = sales_summary.withColumn(
+        "revenue_growth",
+        round(
+            col("total_revenue") - col("previous_day_revenue"),
+            2
+        )
+    )
+    running_window = (
+        Window.orderBy("order_date")
+        .rowsBetween(
+            Window.unboundedPreceding,
+            Window.currentRow
+        )
+    )
+    sales_summary = sales_summary.withColumn(
+        "cumulative_revenue",
+        round(
+            sum("total_revenue").over(running_window),
+            2
+        )
+    )
+    moving_window = (
+        Window
+        .orderBy("order_date")
+        .rowsBetween(
+            -6,
+            Window.currentRow
+        )
+    )
+    sales_summary = sales_summary.withColumn(
+        "7_day_avg_revenue",
+        round(
+            avg("total_revenue").over(moving_window),
+            2
+        )
+    )
     return sales_summary
 
 
@@ -100,6 +144,7 @@ def run_sales_summary_gold_pipeline():
     sales_summary.printSchema()
     sales_summary.show(5)
     write_gold_sales_summary(sales_summary)
+   
     spark.stop()
 
 if __name__=="__main__":
