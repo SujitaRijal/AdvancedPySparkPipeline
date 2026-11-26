@@ -168,7 +168,7 @@ def write_gold_customer_metrics(df):
     )
     print("Gold customer metrics written successfully !")
 
-def run_customer_metrics_pipeline():
+def run_customer_metrics_gold_pipeline():
     spark = get_spark_session()
     customers = read_silver_customers(spark)
     orders = read_silver_orders(spark)
@@ -181,6 +181,6 @@ def run_customer_metrics_pipeline():
     spark.stop()
 
 if __name__=="__main__":
-    run_customer_metrics_pipeline()
+    run_customer_metrics_gold_pipeline()
 
 
