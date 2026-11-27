@@ -89,7 +89,7 @@ def transform_product_metrics(customers,orders,order_items,products,translation)
     "price",
     "freight_value"
     )
-    product_orders = (
+    product_metrics = (
         product_orders
         .groupBy("product_id")
         .agg(
@@ -109,8 +109,8 @@ def transform_product_metrics(customers,orders,order_items,products,translation)
     product_rank_window = Window.orderBy(
         col("total_sales").desc()
     )
-    product_orders = product_orders.withColumn("product_rank", dense_rank().over(product_rank_window))
-    return product_orders
+    product_metrics = product_metrics.withColumn("product_rank", dense_rank().over(product_rank_window))
+    return product_metrics
 
 
 def write_gold_product_metrics(df):
